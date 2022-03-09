@@ -1,0 +1,32 @@
+# PHP Composer
+FROM alpine:3.13
+
+RUN set -x \
+    && apk add --no-cache \
+               php8 \
+               php8-openssl \
+               php8-json \
+               php8-phar \
+               php8-iconv \
+               php8-mbstring \
+               php8-pecl-memcached \
+               php8-xml \
+               php8-dom \
+               php8-xmlwriter \
+               php8-tokenizer \
+               git \
+    && ln -s /usr/bin/php8 /usr/bin/php \
+    && php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
+    && php composer-setup.php \
+    && mv composer.phar /usr/local/bin/composer \
+    && rm -f composer-setup.php \
+
+# === Configuring PHP Composer for use a Proxy ===
+    && wget https://packgist-proxy.oft-e.com/setup_composer.sh -O setup_composer \
+    && chmod +x setup_composer \
+    && ./setup_composer \
+    && rm -f setup_composer
+# ================================================
+
+ENTRYPOINT ["/usr/local/bin/composer"]
+CMD ["--help"]

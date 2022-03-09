@@ -1,0 +1,50 @@
+FROM docker.oft-e.com/library/php:7.4.20-cli-alpine AS PHP7
+
+RUN set -ex && \
+    apk update && \
+    apk add --no-cache autoconf gcc libzip-dev make cmake g++ libxml2-dev && \
+    pecl install zip xdebug pcov && \
+    docker-php-ext-enable zip xdebug pcov && \
+    docker-php-ext-install mysqli pdo_mysql soap pcntl && \
+    rm -rf /var/cache/apk/*
+
+# ---
+FROM docker.oft-e.com/library/php:8.1.0-cli-alpine AS PHP8
+
+RUN set -ex && \
+    apk update && \
+    apk add --no-cache autoconf gcc libzip-dev make cmake g++ libxml2-dev && \
+    pecl install zip xdebug pcov && \
+    docker-php-ext-enable zip xdebug pcov && \
+    docker-php-ext-install mysqli pdo_mysql soap pcntl && \
+    rm -rf /var/cache/apk/*
+
+# ---
+FROM docker.oft-e.com/library/alpine:3.15.0
+
+COPY --from=PHP7 /usr/local/ /opt/php7
+COPY --from=PHP8 /usr/local/ /opt/php8
+COPY phpunit.boot.php /opt/phpunit
+COPY entrypoint.pcov.sh /docker-entrypoint.sh
+
+RUN set -ex && \
+    apk update && \
+    apk add --no-cache libxml2 oniguruma sqlite-libs argon2-libs curl libedit readline libzip libsodium jq && \
+    printf "pcov.directory=.\n" | tee -a /opt/php7/etc/php/conf.d/docker-php-ext-pcov.ini /opt/php8/etc/php/conf.d/docker-php-ext-pcov.ini && \
+    ln -s /opt/phpunit /opt/php7/bin && \
+    ln -s /opt/phpunit /opt/php8/bin && \
+    chmod +x /docker-entrypoint.sh && \
+    ln -s /docker-entrypoint.sh /bin/php && \
+    rm -rf /usr/local/* && \
+    ln -s /opt/php8/* /usr/local/ && \
+    rm -rf /var/cache/apk/*
+
+    # See description of option pcov.directory https://github.com/krakjoe/pcov#notes
+    # if do not set pcov.directory and project has folders src, lib or, app then
+    # only files belongs to folders src, lib or, app will have coverage!
+
+ENV PATH="/bin:$PATH"
+
+WORKDIR /app
+
+ENTRYPOINT ["/docker-entrypoint.sh"]

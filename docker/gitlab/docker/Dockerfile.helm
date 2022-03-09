@@ -1,0 +1,18 @@
+# PHP Composer
+FROM docker:latest
+
+RUN set -x \
+    && apk update \
+    && apk add skopeo \
+    && rm -rf /var/cache/apk/* \
+    && wget https://get.helm.sh/helm-v3.7.1-linux-386.tar.gz \
+    && tar xvfz helm-v3.7.1-linux-386.tar.gz \
+    && mv linux-386/helm /usr/local/bin/ \
+    && rm -Rf helm-v3.7.1-linux-386.tar.gz linux-386 \
+    && mkdir -p ~/.config/helm/ \
+    && ln -s ~/.docker/config.json ~/.config/helm/registry.json
+
+ENV HELM_EXPERIMENTAL_OCI=1
+
+
+

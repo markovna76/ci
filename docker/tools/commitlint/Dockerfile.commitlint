@@ -1,0 +1,17 @@
+FROM alpine
+
+WORKDIR /
+
+RUN apk update && apk upgrade && \
+    apk add --no-cache nodejs npm bash && \
+    npm install -g @commitlint/config-conventional && \
+    npm install -g @commitlint/cli
+
+ADD . /
+
+RUN chmod +x /entrypoint.sh
+
+WORKDIR /app
+VOLUME ["/app"]
+
+ENTRYPOINT ["/entrypoint.sh"]

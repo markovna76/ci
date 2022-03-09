@@ -1,0 +1,8 @@
+name: microservice-01
+version: 1.0
+description: POD + Service + Ingress + Autoscaling + HTTPS certificates
+ 
+maintainers:
+  - name: Oft-e (Mna, 29/11/2021)
+    email: mna@mna.tom.ru
+    url: https://git.oft-e.com/tools/ci/-/tree/master/helm

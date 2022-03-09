@@ -1,0 +1,20 @@
+{{- if .Values.cert.enable }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.global.werf.name }}
+spec:
+  secretName: tls-{{ .Values.global.werf.name }}
+  {{- if .Values.cert.duration }}
+  duration: {{ .Values.cert.duration }}
+  {{- end }}
+  {{- if .Values.cert.renewBefore }}
+  renewBefore: {{ .Values.cert.renewBefore }}
+  {{- end }}
+  issuerRef:
+    kind: ClusterIssuer
+    name: {{ .Values.cert.issuer }}
+  commonName: "{{ .Values.ingress.dnsname }}"
+  dnsNames:
+  - "{{ .Values.ingress.dnsname }}"
+{{- end }}

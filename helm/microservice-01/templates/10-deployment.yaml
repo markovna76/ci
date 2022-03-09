@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.global.werf.name }}.deployment
+spec:
+  {{- if .Values.deployment.MinReplicas }}
+  replicas: {{ .Values.deployment.MinReplicas }}
+  {{- else }}
+  replicas: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ .Values.global.werf.name }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 10%
+      maxUnavailable: 10%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.global.werf.name }}
+    spec:
+      imagePullSecrets:
+        - name: docker.oft-e.com
+      containers:
+{{ range $pod, $poddata := .Values.pod }}
+  {{- if $poddata.enable }}
+      - image: {{ index $.Values.werf.image $pod }}
+        name: {{ $pod }}
+    {{- if $poddata.command }}
+        command:
+      {{- range $key, $value := $poddata.command }}
+          - {{ $value }}
+      {{end}}
+    {{end}}
+        imagePullPolicy: IfNotPresent
+    {{- if $poddata.env }}
+        env:
+      {{- range $key, $value := $poddata.env }}
+        - name: {{ $key }}
+          value: {{ $value }}
+      {{- end }}
+    {{ end }}
+    {{ if $poddata.containerPort }}
+        ports:
+        - containerPort: {{ $poddata.containerPort }}
+    {{ end }}
+    {{- if $poddata.lifecycle }}
+        lifecycle:
+          preStop:
+            exec:
+              command:
+    {{ range $key, $value := $poddata.lifecycle.preStop }}
+                - {{ $value }}
+    {{ end }}
+  {{ end }}
+  {{- if $poddata.livenessProbe }}
+        livenessProbe:
+          initialDelaySeconds: {{ $poddata.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ $poddata.livenessProbe.periodSeconds }}
+          httpGet:
+            path: {{ $poddata.livenessProbe.path }}
+            port: {{ $poddata.livenessProbe.port }}
+            scheme: HTTP
+            httpHeaders:
+              - name: Host
+                value: {{ $.Values.ingress.dnsname }}
+    {{ end }}
+    {{- if $poddata.readinessProbe }}
+        readinessProbe:
+          initialDelaySeconds: {{ $poddata.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ $poddata.readinessProbe.periodSeconds }}
+          httpGet:
+            path: {{ $poddata.readinessProbe.path }}
+            port: {{ $poddata.readinessProbe.port }}
+            scheme: HTTP
+            httpHeaders:
+              - name: Host
+                value: {{ $.Values.ingress.dnsname }}
+    {{ end }}
+  {{- end }}
+{{- end -}}
+
+{{- if .Values.deployment.resources }}
+        resources:
+          requests:
+            cpu: {{ .Values.deployment.resources.CPU }}
+            memory: {{ .Values.deployment.resources.Memory }}
+          limits:
+            cpu: {{ .Values.deployment.resources.CPUMax }}
+            memory: {{ .Values.deployment.resources.MemoryMax }}
+{{- end }}
+
+
+
+

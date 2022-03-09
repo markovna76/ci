@@ -1,0 +1,8 @@
+# PHP Composer
+FROM docker:latest
+
+RUN set -x \
+    && apk update \
+    && apk add skopeo \
+    && rm -rf /var/cache/apk/*
+

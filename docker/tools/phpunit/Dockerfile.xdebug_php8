@@ -1,0 +1,36 @@
+# PHPUnit Docker Container.
+FROM php:8
+
+WORKDIR /tmp
+
+# libzip-dev is needed for zip php module
+# git & unzip is needed for composer
+RUN set -x && \
+    apt update && export DEBIAN_FRONTEND=noninteractive && \
+    apt-get -yq install git libzip-dev unzip libxml2-dev && \
+    # zip php module is needed for composer
+    pecl install zip && \
+    docker-php-ext-enable zip && \
+    docker-php-ext-install mysqli pdo_mysql soap && \
+    # pcntl php module is needed for phpunit
+    docker-php-ext-install pcntl && \
+    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && \
+    php composer-setup.php --install-dir=/usr/bin --filename=composer && \
+    php -r "unlink('composer-setup.php');" && \
+    composer require "phpunit/phpunit:^8.5.0" --prefer-source --no-interaction && \
+    composer require "phpunit/php-invoker" --prefer-source --no-interaction && \
+    ln -s /tmp/vendor/bin/phpunit /usr/local/bin/phpunit && \
+    apt remove -y libxml2-dev && \
+    apt autoremove -y && \
+    apt-get clean && \
+    rm -Rf /tmp/pear
+
+RUN set -x \
+    && pecl install xdebug \
+    && docker-php-ext-enable xdebug
+
+#VOLUME ["/app"] it's not need
+WORKDIR /app
+
+ENTRYPOINT ["/usr/local/bin/phpunit"]
+CMD ["--help"]

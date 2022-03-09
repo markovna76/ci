@@ -1,0 +1,50 @@
+{{- if .Values.ingress.enable }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  {{- if or (not (empty (.Values.ingress.annotations))) (not (empty (.Values.ingress.whitelist))) (not (empty (.Values.ingress.aliases))) }}
+  annotations:
+    # See: https://github.com/kubernetes/ingress-nginx/blob/master/docs/user-guide/nginx-configuration/annotations.md
+    # White list
+    {{- if .Values.ingress.whitelist }}
+    nginx.ingress.kubernetes.io/whitelist-source-range: "
+      {{- range $value := .Values.ingress.whitelist -}}
+        {{- $value -}},
+      {{- end }}127.0.0.1"
+    {{- end }}
+    # Annotation
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    # Server aliases
+    {{- if .Values.ingress.aliases }}
+    nginx.ingress.kubernetes.io/server-alias: "
+      {{- range $value := .Values.ingress.aliases -}}
+        {{- $value -}},
+      {{- end }} {{ .Values.ingress.dnsname }}"
+    {{- end }}
+
+  {{- end }}
+  labels:
+    app: {{ .Values.werf.name }}
+  name: {{ .Values.werf.name }}
+spec:
+  ingressClassName: {{ if .Values.ingress.AllowFromInternet }} nginx-external {{ else }} nginx-internal {{ end }}
+  rules:
+  - host: {{.Values.ingress.dnsname}}
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: {{ .Values.global.werf.name }}
+            port:
+              number: 80
+    {{- if .Values.cert.enable }}
+  tls:
+  - hosts:
+    - {{ .Values.ingress.dnsname }}
+    secretName: tls-{{ .Values.global.werf.name }}
+    {{- end }}
+  {{- end }}

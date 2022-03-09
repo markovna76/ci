@@ -1,0 +1,18 @@
+FROM alpine
+
+#WORKDIR / 
+
+RUN apk update && apk upgrade && \
+    apk add --no-cache bash git nodejs npm && \
+    npm install -g commitizen && \
+    npm install -g cz-customizable
+
+ADD . /
+
+RUN chmod +x /entrypoint.sh
+
+WORKDIR /app
+VOLUME ["/app"]
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["--hook"]

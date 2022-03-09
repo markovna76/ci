@@ -1,0 +1,9 @@
+# Gitlab images repository
+
+You can make Dockerfile for any tools and this Dockerfile will be apply and push to the docker.oft-e.com/gitlab repository.
+Name of the folder is a name of the docker image. Extension of the Dockerfile is a tag of the docker image.
+If Extension is absent the tag will be set 'latest'.
+
+Example:
+- composer/Dockerfile.test1 - the Docker image file docker.oft-e.com/gitlab/composer:test1
+- composer/Dockerfile - the Docker image file docker.oft-e.com/gitlab/composer:latest

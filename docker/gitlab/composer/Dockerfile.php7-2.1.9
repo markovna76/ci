@@ -1,0 +1,32 @@
+# PHP Composer
+FROM docker:latest
+
+RUN set -x \
+    && apk update \
+    && apk add php \
+               php-openssl \
+               php-json \
+               php-phar \
+               php-iconv \
+               php-mbstring \
+               php7-pecl-memcached \
+               php-xml \
+               php7-dom \
+               php7-xmlwriter \
+               php7-tokenizer \
+               git \
+    && php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
+    && php composer-setup.php \
+    && mv composer.phar /usr/local/bin/composer \
+    && rm -f composer-setup.php \
+    && rm -rf /var/cache/apk/* \
+
+# === Configuring PHP Composer for use a Proxy ===
+    && wget https://packgist-proxy.oft-e.com/setup_composer.sh -O setup_composer \
+    && chmod +x setup_composer \
+    && ./setup_composer \
+    && rm -f setup_composer
+# ================================================
+
+ENTRYPOINT ["/usr/local/bin/composer"]
+CMD ["--help"]
