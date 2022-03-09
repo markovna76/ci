@@ -1,0 +1,141 @@
+#image: docker:latest
+image: docker.oft-e.com/gitlab/docker:skopeo
+
+variables:
+#  CI_DEBUG_TRACE: "true"
+#  DOCKER_IMAGE_FULLNAME: "${DOCKER_REGISTRY}/tools/${CI_PROJECT_PATH_SLUG}:${CI_COMMIT_REF_SLUG}.${CI_PIPELINE_ID}"
+
+stages:
+  - build
+  - push
+  - clean
+#before_script:
+#  - echo "====== Hello! ======"
+#  - echo "=== I am Before script :) ==="
+#after_script:
+#  - echo "=== I am After script :) ==="
+#  - echo "    ====== By-By! ======"
+
+Build Docker Images:
+  stage: build
+  script:
+    # https://stackoverflow.com/questions/50043492/can-i-query-a-remote-docker-registry-for-image-information-such-as-os
+    # it can inspect remote images
+    # for ex.: skopeo inspect docker://docker.oft-e.com/tools/phpunit:pcov
+    # - set -ex if you want debug
+#    - set -ex
+#    - apk update
+#    - apk add skopeo
+    - docker login $DOCKER_REGISTRY
+    - cd docker
+    - >
+      for Proj in `find * -maxdepth 0 -type d`; do
+        cd $Proj
+        for DImage in `find * -maxdepth 0 -type d`; do
+          for FL in `ls ${DImage}/Dockerfile*`; do
+            ext=`echo ${FL}|sed 's/^.*Dockerfile//; s/\./:/'`
+            # the next command will have exit code =0 because "|| :"
+            md5=`skopeo inspect docker://${DOCKER_REGISTRY}/${Proj}/${DImage}${ext} 2>/dev/null |\
+                 grep "Dockerfile.md5"|awk -F ":" '{print $2}'|sed "s/\"//g;s/ //g"` || :
+            SUMM="ok"
+            echo "${md5}  ${FL}"|md5sum -c - >/dev/null 2>&1 || SUMM="err"
+            if [ "${SUMM}" == "err" ]; then
+              echo " !!!===== ${FL} has been changed =====!!!"
+              md5=`md5sum ${FL} | awk '{print $1}'`
+              echo -e "\e[0Ksection_start:`date +%s`:build_section${DImage}${ext}[collapsed=true]\r\e[0KBuilding ${DImage}${ext}"
+              docker build -t ${DOCKER_REGISTRY}/${Proj}/${DImage}${ext} -f ${FL} ${DImage}/ --label "Dockerfile.md5=${md5}"
+              echo -e "\e[0Ksection_end:`date +%s`:build_section${DImage}${ext}\r\e[0K"
+            else
+              echo " ===== ${FL} hasn't been changed ====="
+            fi
+          done
+        done
+        cd ..
+      done
+
+Push Docker Images to the repository:
+  stage: push
+  script:
+    - docker login $DOCKER_REGISTRY
+    - cd docker
+#    - set -ex
+    - >
+      for Proj in `find * -maxdepth 0 -type d`; do
+        cd $Proj
+        for DImage in `ls`; do
+          if [ -d "${DImage}" ]; then
+            for FL in `ls ${DImage}/Dockerfile*`; do
+              ext=`echo ${FL}|sed 's/^.*Dockerfile//; s/\./:/'`
+              # --- MD5 in the repo ---
+              md5repo=`skopeo inspect docker://${DOCKER_REGISTRY}/${Proj}/${DImage}${ext} 2>/dev/null | \
+                       grep "Dockerfile.md5"|awk -F ":" '{print $2}'|sed "s/\"//g;s/ //g"` || :
+              [ "${md5repo}" == "" ] && SUMMrepo="err" || SUMMrepo="ok"
+              echo "${md5repo}  ${FL}"|md5sum -c - >/dev/null 2>&1 || SUMMrepo="err"
+              # -----------------------
+              # --- MD5 local image ---
+              md5local=`docker inspect ${DOCKER_REGISTRY}/${Proj}/${DImage}${ext} 2>/dev/null | \
+                        grep "Dockerfile.md5"| tail -1| awk '{print $2}'|sed "s/\"//g;s/ //g"` || :
+              SUMMlocal="ok"
+              echo "${md5local}  ${FL}"|md5sum -c - >/dev/null 2>&1 || SUMMlocal="err"
+              # -----------------------
+              # If MD5sum of the Remote Image <> MD5sum of the Dockerfile
+              #    AND MD5sum of the local image = MD5sum of the Dockerfile
+              # we will push local image to the repository
+              if [ "${SUMMrepo}" != "ok" -a "${SUMMlocal}" == "ok" ]; then
+                docker push ${DOCKER_REGISTRY}/${Proj}/${DImage}${ext}
+              else
+                echo "${DOCKER_REGISTRY}/${Proj}/${DImage}${ext} hasn't been changed"
+              fi
+            done
+          fi
+        done
+        cd ..
+      done
+  only:
+    - master
+  needs:
+    - Build Docker Images
+
+Helms Build and Push:
+  stage: build
+  image: docker.oft-e.com/gitlab/docker:helm
+  script:
+    - apk add curl
+    - cd helm
+    - >
+      for Proj in `find * -maxdepth 0 -type d`; do
+        helm package $Proj
+      done
+
+      for Proj in `find *.tgz -maxdepth 0 -type f`; do
+        curl --user "robot\$helm+push-ci:2e6aaSw6PUajLVrBPwcXJFqbzyeIxxKo" \
+        -X POST "https://docker.oft-e.com/api/chartrepo/helm/charts" \
+        -H "Content-Type: multipart/form-data" \
+        -F "chart=@${Proj};type=application/x-compressed-tar"
+        rm -f $Proj
+      done
+  only:
+    - master
+  needs: []
+
+
+Clean gitlab-runner from Dockers Images:
+  stage: clean
+  script:
+    - cd docker
+    - >
+      for Proj in `find * -maxdepth 0 -type d`; do
+        cd $Proj
+        for DImage in `find * -maxdepth 0 -type d`; do
+          for FL in `ls ${DImage}/Dockerfile*`; do
+            ext=`echo ${FL}|sed 's/^.*Dockerfile//; s/\./:/'`
+            docker rmi ${DOCKER_REGISTRY}/${Proj}/${DImage}${ext} 2>/dev/null || echo "${DOCKER_REGISTRY}/${Proj}/${DImage}${ext} - Ok"
+          done
+        done
+        cd ..
+      done
+    - docker rmi php:latest 2>/dev/null || echo "Ok"
+  only:
+    - master
+  needs:
+    - Push Docker Images to the repository
